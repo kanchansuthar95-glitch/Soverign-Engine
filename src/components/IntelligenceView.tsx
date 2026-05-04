@@ -44,6 +44,8 @@ export function IntelligenceView() {
   const [showConfig, setShowConfig] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+
   const handleRoleSelect = (agentId: string, roleId: string) => {
     const role = ROLE_REGISTRY.find(r => r.id === roleId);
     if (!role) return;
@@ -70,6 +72,50 @@ export function IntelligenceView() {
     }
   }, [messages]);
 
+  useEffect(() => {
+    let pollInterval: any;
+    if (currentJobId && isAnalyzing) {
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/intelligence/job/${currentJobId}`);
+          const job = await res.json();
+          
+          if (job.events) {
+            const completedEvents = job.events.filter((e: any) => e.status === 'completed' && e.response);
+            const newMessages: Message[] = completedEvents.map((e: any) => {
+              const response = e.response;
+              const agent = agents.find(a => a.id === e.agent_id);
+              return {
+                id: `${job.id}_${e.id}`,
+                role: `agent-${agent?.roleId || 'unknown'}`,
+                agentName: agent?.name || 'Unknown Agent',
+                content: response.reasoning + "\n\n" + (typeof response.data === 'object' ? JSON.stringify(response.data, null, 2) : response.data),
+                color: agent?.color || '#888',
+                hierarchy: agent?.hierarchy || 'Specialist'
+              };
+            });
+
+            if (newMessages.length > 0) {
+              setMessages(prev => {
+                const existingIds = new Set(prev.map(m => m.id));
+                const filteredNew = newMessages.filter(m => !existingIds.has(m.id));
+                return [...prev, ...filteredNew];
+              });
+            }
+
+            if (job.status === 'completed' || job.status === 'failed') {
+              setIsAnalyzing(false);
+              setCurrentJobId(null);
+            }
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      }, 2000);
+    }
+    return () => clearInterval(pollInterval);
+  }, [currentJobId, isAnalyzing, agents]);
+
   const handleSend = async () => {
     if (!inputValue.trim() || isAnalyzing) return;
     
@@ -80,28 +126,21 @@ export function IntelligenceView() {
 
     try {
       const activeAgents = agents.filter(a => a.active);
-      const res = await fetch('/api/intelligence/debate', {
+      const res = await fetch('/api/intelligence/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: inputValue, agents: activeAgents })
       });
       
-      const debate = await res.json();
-      
-      const newMessages: Message[] = debate.responses.map((r: any, idx: number) => ({
-        id: `${debate.id}_${idx}`,
-        role: `agent-${r.role}`,
-        agentName: r.name,
-        content: r.content,
-        color: r.color,
-        hierarchy: r.hierarchy
-      }));
-
-      setMessages(prev => [...prev, ...newMessages]);
+      const data = await res.json();
+      if (data.jobId) {
+        setCurrentJobId(data.jobId);
+      } else {
+        throw new Error(data.error || "Failed to start job");
+      }
     } catch (err) {
       console.error(err);
-      setMessages(prev => [...prev, { id: 'err', role: 'system', content: 'Debate engine halted: connection error.' }]);
-    } finally {
+      setMessages(prev => [...prev, { id: 'err', role: 'system', content: 'Engine ignition failed: connection error.' }]);
       setIsAnalyzing(false);
     }
   };
@@ -248,7 +287,7 @@ export function IntelligenceView() {
                ))}
              </div>
              <div className="h-4 w-px bg-white/10" />
-             <button className="text-[10px] font-mono text-muted uppercase tracking-widest hover:text-white transition-colors">Clear History</button>
+             <button onClick={() => setMessages([{ id: '1', role: 'system', content: 'Aegis Intelligence Core Online. Waiting for operator dispatch.' }])} className="text-[10px] font-mono text-muted uppercase tracking-widest hover:text-white transition-colors">Clear History</button>
           </div>
         </div>
 
@@ -288,44 +327,38 @@ export function IntelligenceView() {
         </div>
       </div>
 
-      {/* Intelligence Dashboard (Custom Markup) */}
+      {/* Intelligence Dashboard (Deterministic) */}
       <div className="hidden xl:flex w-80 border-l border-white/10 bg-black/40 backdrop-blur-3xl flex-col h-full overflow-hidden">
         <div className="p-6 border-b border-white/10 shrink-0 bg-white/[0.02]">
           <h3 className="text-[10px] font-mono font-bold uppercase tracking-[0.3em] text-muted">Aegis Intelligence Ledger</h3>
         </div>
         <div className="flex-1 overflow-y-auto no-scrollbar p-6 space-y-8">
           <div className="space-y-4">
-            <SectionHeader title="Consensus Metrics" />
+            <SectionHeader title="System State" />
             <div className="grid grid-cols-2 gap-3">
-              <MetricBox label="Logic Entropy" value="0.24" unit="eb" />
-              <MetricBox label="Neural Load" value="42" unit="%" />
-              <MetricBox label="Truth Score" value="98.2" unit="%" />
-              <MetricBox label="Agent Sync" value="Locked" unit="" />
+              <MetricBox label="Job Queue" value={isAnalyzing ? "Active" : "Idle"} unit="" />
+              <MetricBox label="Persistence" value="SQL" unit="LITE" />
+              <MetricBox label="LLM Model" value="Gemini" unit="1.5-f" />
+              <MetricBox label="Status" value="Ready" unit="" />
             </div>
           </div>
 
           <div className="space-y-4">
-             <SectionHeader title="Mission Parameters" />
+             <SectionHeader title="Event Pipeline" />
              <div className="space-y-3">
-                <ProgressItem label="Deep Search Depth" value={85} />
-                <ProgressItem label="Creative Variance" value={42} />
-                <ProgressItem label="Reasoning Steps" value={100} />
-             </div>
-          </div>
-
-          <div className="space-y-4">
-            <SectionHeader title="Active Thread Trace" />
-            <div className="space-y-3">
-               {agents.filter(a => a.active).slice(0, 4).map(a => (
-                 <div key={a.id} className="flex items-center gap-3 p-3 rounded-2xl glass border-white/5 hover:bg-white/[0.05] transition-all cursor-pointer">
-                    <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: a.color }} />
-                    <div className="flex-1">
-                       <p className="text-[10px] font-bold text-white leading-none">{a.name}</p>
-                       <p className="text-[8px] font-mono text-muted uppercase mt-1">Status: Computing...</p>
+                {auditLogs.slice(0, 8).map((log: any) => (
+                  <div key={log.id} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                    <div className="flex justify-between items-center">
+                       <span className="text-[8px] font-mono text-primary uppercase font-bold">{log.type || 'EVENT'}</span>
+                       <span className="text-[7px] font-mono text-muted">{new Date(log.created_at).toLocaleTimeString()}</span>
                     </div>
-                 </div>
-               ))}
-            </div>
+                    <p className="text-[10px] text-white/70 font-sans truncate">{log.agent_id ? agents.find(a => a.id === log.agent_id)?.name : 'System'}: {log.status}</p>
+                  </div>
+                ))}
+                {auditLogs.length === 0 && (
+                  <p className="text-[10px] text-muted font-mono text-center py-4">No active events in ledger.</p>
+                )}
+             </div>
           </div>
 
           <div className="mt-auto p-5 rounded-[2rem] bg-theme-tone/10 border border-theme-tone/20 relative overflow-hidden group">
@@ -335,10 +368,10 @@ export function IntelligenceView() {
              <div className="relative z-10">
                 <div className="flex items-center gap-3 mb-2">
                    <div className="w-1.5 h-1.5 rounded-full bg-theme-tone animate-pulse" />
-                   <span className="text-[10px] font-mono text-white/90 uppercase tracking-widest font-bold">Lab Connectivity</span>
+                   <span className="text-[10px] font-mono text-white/90 uppercase tracking-widest font-bold">Deterministic Engine</span>
                 </div>
                 <p className="text-[10px] text-white/60 font-mono leading-relaxed">
-                  Real-time cross-analysis active. Direct interface to NVD, CloudGuard, and Echo-Intel.
+                  Local-first orchestration active. Verified state transitions and persistent memory layer enabled.
                 </p>
              </div>
           </div>

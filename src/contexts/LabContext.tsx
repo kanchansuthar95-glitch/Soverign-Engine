@@ -164,7 +164,7 @@ export function LabProvider({ children }: { children: React.ReactNode }) {
 
   const refreshLogs = async () => {
     try {
-      const res = await fetch('/api/audit');
+      const res = await fetch('/api/intelligence/logs');
       const data = await res.json();
       setAuditLogs(data);
     } catch (e) { console.error(e); }
@@ -186,13 +186,14 @@ export function LabProvider({ children }: { children: React.ReactNode }) {
     refreshSources();
     refreshLogs();
     
-    // Simulate telemetry
+    // Simulate telemetry & Poll logs
     const interval = setInterval(() => {
       setSystemStatus(prev => ({
         cpu: Math.floor(20 + Math.random() * 10),
         memory: +(1.2 + Math.random() * 0.1).toFixed(1),
         health: 95 + Math.floor(Math.random() * 5)
       }));
+      refreshLogs();
     }, 5000);
     
     return () => clearInterval(interval);
