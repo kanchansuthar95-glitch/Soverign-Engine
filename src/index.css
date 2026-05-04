@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #22C55E;
+  --color-muted: #64748B;
+  --color-foreground: #F8FAFC;
+  
+  --color-azure: #3B82F6;
+  --color-emerald: #10B981;
+  --color-crimson: #EF4444;
+  --color-amber: #F59E0B;
+  --color-obsidian: #6366F1;
+}
+
+@layer base {
+  body {
+    @apply bg-[#0C0D0E] text-slate-300;
+  }
+}
+
+.glass {
+  @apply bg-white/[0.03] backdrop-blur-xl border border-white/10;
+}
+
+.glass-dark {
+  @apply bg-black/40 backdrop-blur-2xl border border-white/5;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+/* Theme Tones */
+.theme-azure { --theme-tone: var(--color-azure); }
+.theme-emerald { --theme-tone: var(--color-emerald); }
+.theme-crimson { --theme-tone: var(--color-crimson); }
+.theme-amber { --theme-tone: var(--color-amber); }
+.theme-obsidian { --theme-tone: var(--color-obsidian); }
+
+.bg-theme-glow {
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--theme-tone) 15%, transparent), transparent 70%);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #1F2124;
+  border-radius: 10px;
+}

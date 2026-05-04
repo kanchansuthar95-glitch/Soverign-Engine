@@ -1,0 +1,6 @@
+{
+  "name": "Aegis Research Engine",
+  "description": "A premium, local-first autonomous research and analysis platform for security labs and systems engineering.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["AI Orchestration", "Security Analysis", "Simulation Lab"]
+}
